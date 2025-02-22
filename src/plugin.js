@@ -142,24 +142,26 @@ class QualitySelectorHlsClass {
       }
     }
 
-    levelItems.sort((current, next) => {
-      if ((typeof current !== 'object') || (typeof next !== 'object')) {
-        return -1;
-      }
-      if (current.item.value < next.item.value) {
-        return -1;
-      }
-      if (current.item.value > next.item.value) {
-        return 1;
-      }
-      return 0;
-    });
-
     levelItems.push(this.getQualityMenuItem.call(this, {
       label: player.localize('Auto'),
       value: 'auto',
       selected: true
     }));
+   levelItems.sort((current, next) => {
+  if ((typeof current !== 'object') || (typeof next !== 'object')) {
+    return -1;
+  }
+  // Change the comparison to sort in descending order
+  if (current.item.value < next.item.value) {
+    return 1;  // Switch from -1 to 1
+  }
+  if (current.item.value > next.item.value) {
+    return -1; // Switch from 1 to -1
+  }
+  return 0;
+});
+
+
 
     if (this._qualityButton) {
       this._qualityButton.createItems = function() {
@@ -175,24 +177,40 @@ class QualitySelectorHlsClass {
    *
    * @param {number} quality - A number representing HLS playlist.
    */
-  setQuality(quality) {
-    const qualityList = this.player.qualityLevels();
-
-    // Set quality on plugin
-    this._currentQuality = quality;
-
-    if (this.config.displayCurrentQuality) {
-      this.setButtonInnerText(quality === 'auto' ? quality : `${quality}p`);
-    }
-
-    for (let i = 0; i < qualityList.length; ++i) {
-      const {width, height} = qualityList[i];
-      const pixels = width > height ? height : width;
-
-      qualityList[i].enabled = (pixels === quality || quality === 'auto');
-    }
-    this._qualityButton.unpressButton();
+ setQuality(quality) {
+  const qualityList = this.player.qualityLevels();
+  this._currentQuality = quality;
+  
+  // Update UI if needed
+  if (this.options.displayCurrentQuality) {
+    this.setButtonInnerText(quality === 'auto' ? 'Auto' : `${quality}p`);
   }
+
+  // Disable all qualities except target quality
+  for (let i = 0; i < qualityList.length; ++i) {
+    const level = qualityList[i];
+    const pixels = Math.min(level.width, level.height);
+    level.enabled = quality === 'auto' || pixels === quality;
+  }
+
+  // Force immediate quality switch
+  if (quality !== 'auto') {
+    const currentTime = this.player.currentTime();
+    const isPlaying = !this.player.paused();
+    
+    // Clear buffer and reload segments
+    this.player.tech_.hls.playlists.media().segments = [];
+    this.player.tech_.hls.bandwidth = Number.MAX_VALUE;
+    
+    // Maintain playback state
+    this.player.currentTime(currentTime);
+    if (isPlaying) {
+      this.player.play();
+    }
+  }
+  
+  this._qualityButton.unpressButton();
+}
 
   /**
    * Return the current set quality or 'auto'
