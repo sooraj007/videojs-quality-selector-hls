@@ -122,17 +122,13 @@
     return ConcreteMenuItemInit;
   }
 
-  // Default options for the plugin.
-
   const defaults = {
-    vjsIconClass: 'vjs-icon-hd',
+    vjsIconClass: "vjs-icon-hd",
     displayCurrentQuality: false,
     placementIndex: 0
   };
   /**
-   * An advanced Video.js plugin. For more information on the API
-   *
-   * See: https://blog.videojs.com/feature-spotlight-advanced-plugins/
+   * An advanced Video.js plugin for HLS quality selection.
    */
 
   class QualitySelectorHlsClass {
@@ -143,18 +139,14 @@
      *         A Video.js Player instance.
      *
      * @param  {Object} [options]
-     *         An optional options object.
-     *
-     *         While not a core part of the Video.js plugin architecture, a
-     *         second argument of options is a convenient way to accept inputs
-     *         from your plugin's caller.
+     *         Optional options object.
      */
     constructor(player, options) {
-      // the parent class will add player under this.player
-      this.player = player;
+      this.player = player; // Merge options with defaults (use config throughout)
+
       this.config = videojs__default['default'].obj.merge(defaults, options);
       player.ready(() => {
-        this.player.addClass('vjs-quality-selector-hls');
+        this.player.addClass("vjs-quality-selector-hls");
 
         if (this.player.qualityLevels) {
           // Create the quality button.
@@ -164,9 +156,9 @@
       });
     }
     /**
-     * Returns HLS Plugin
+     * Returns HLS Plugin instance.
      *
-     * @return {*} - videojs-hls-contrib plugin.
+     * @return {*} - The hls plugin instance.
      */
 
 
@@ -181,7 +173,7 @@
 
 
     bindPlayerEvents() {
-      this.player.qualityLevels().on('addqualitylevel', this.onAddQualityLevel.bind(this));
+      this.player.qualityLevels().on("addqualitylevel", this.onAddQualityLevel.bind(this));
     }
     /**
      * Adds the quality menu button to the player control bar.
@@ -193,34 +185,34 @@
       this._qualityButton = new ConcreteButton(player);
       const placementIndex = player.controlBar.children().length - 2;
       const concreteButtonInstance = player.controlBar.addChild(this._qualityButton, {
-        componentClass: 'qualitySelector'
+        componentClass: "qualitySelector"
       }, this.config.placementIndex || placementIndex);
-      concreteButtonInstance.addClass('vjs-quality-selector');
+      concreteButtonInstance.addClass("vjs-quality-selector");
 
       if (!this.config.displayCurrentQuality) {
-        const icon = ` ${this.config.vjsIconClass || 'vjs-icon-hd'}`;
-        concreteButtonInstance.menuButton_.$('.vjs-icon-placeholder').className += icon;
+        const icon = ` ${this.config.vjsIconClass || "vjs-icon-hd"}`;
+        concreteButtonInstance.menuButton_.$(".vjs-icon-placeholder").className += icon;
       } else {
-        this.setButtonInnerText('auto');
+        this.setButtonInnerText("auto");
       }
 
-      concreteButtonInstance.removeClass('vjs-hidden');
+      concreteButtonInstance.removeClass("vjs-hidden");
     }
     /**
-    *Set inner button text.
-    *
-    * @param {string} text - the text to display in the button.
-    */
+     * Sets the inner button text.
+     *
+     * @param {string} text - The text to display in the button.
+     */
 
 
     setButtonInnerText(text) {
-      this._qualityButton.menuButton_.$('.vjs-icon-placeholder').innerHTML = text;
+      this._qualityButton.menuButton_.$(".vjs-icon-placeholder").innerHTML = text;
     }
     /**
-     * Builds individual quality menu items.
+     * Builds an individual quality menu item.
      *
      * @param {Object} item - Individual quality menu item.
-     * @return {ConcreteMenuItem} - Menu item
+     * @return {ConcreteMenuItem} - Menu item instance.
      */
 
 
@@ -229,7 +221,9 @@
       return ConcreteMenuItem(player, item, this._qualityButton, this);
     }
     /**
-     * Executed when a quality level is added from HLS playlist.
+     * Executed when a quality level is added from the HLS playlist.
+     * Builds the quality menu such that the "Auto" option is always on top,
+     * and the available quality levels are sorted in descending order.
      */
 
 
@@ -237,51 +231,39 @@
       const player = this.player;
       const qualityList = player.qualityLevels();
       const levels = qualityList.levels_ || [];
-      const levelItems = [];
+      const levelItems = []; // Build a unique list of quality levels based on the shorter dimension.
 
       for (let i = 0; i < levels.length; ++i) {
         const {
           width,
           height
         } = levels[i];
-        const pixels = width > height ? height : width;
+        const pixels = Math.min(width, height);
 
         if (!pixels) {
           continue;
         }
 
-        if (!levelItems.filter(_existingItem => {
-          return _existingItem.item && _existingItem.item.value === pixels;
-        }).length) {
-          const levelItem = this.getQualityMenuItem.call(this, {
-            label: pixels + 'p',
+        if (!levelItems.filter(existing => existing.item && existing.item.value === pixels).length) {
+          const levelItem = this.getQualityMenuItem({
+            label: pixels + "p",
             value: pixels
           });
           levelItems.push(levelItem);
         }
-      }
+      } // Sort quality items in descending order (highest quality first).
 
-      levelItems.push(this.getQualityMenuItem.call(this, {
-        label: player.localize('Auto'),
-        value: 'auto',
+
+      levelItems.sort((a, b) => {
+        return b.item.value - a.item.value;
+      }); // Create the Auto option and insert it at the top.
+
+      const autoItem = this.getQualityMenuItem({
+        label: player.localize("Auto"),
+        value: "auto",
         selected: true
-      }));
-      levelItems.sort((current, next) => {
-        if (typeof current !== 'object' || typeof next !== 'object') {
-          return -1;
-        } // Change the comparison to sort in descending order
-
-
-        if (current.item.value < next.item.value) {
-          return 1; // Switch from -1 to 1
-        }
-
-        if (current.item.value > next.item.value) {
-          return -1; // Switch from 1 to -1
-        }
-
-        return 0;
       });
+      levelItems.unshift(autoItem);
 
       if (this._qualityButton) {
         this._qualityButton.createItems = function () {
@@ -292,73 +274,92 @@
       }
     }
     /**
-     * Sets quality (based on media short side)
+     * Sets quality (based on the shorter side of the video dimensions).
+     * This method also flushes the current playback buffer to enforce an immediate switch.
      *
-     * @param {number} quality - A number representing HLS playlist.
+     * @param {number|string} quality - Either a number (e.g. 720) or 'auto'.
      */
 
 
     setQuality(quality) {
-      const qualityList = this.player.qualityLevels();
-      this._currentQuality = quality; // Update UI if needed
+      const qualityLevels = this.player.qualityLevels();
+      const levels = qualityLevels.levels_ || [];
+      this._currentQuality = quality; // Update the quality button display
 
-      if (this.options.displayCurrentQuality) {
-        this.setButtonInnerText(quality === 'auto' ? 'Auto' : `${quality}p`);
-      } // Disable all qualities except target quality
-
-
-      for (let i = 0; i < qualityList.length; ++i) {
-        const level = qualityList[i];
-        const pixels = Math.min(level.width, level.height);
-        level.enabled = quality === 'auto' || pixels === quality;
-      } // Force immediate quality switch
-
-
-      if (quality !== 'auto') {
-        const currentTime = this.player.currentTime();
-        const isPlaying = !this.player.paused(); // Clear buffer and reload segments
-
-        this.player.tech_.hls.playlists.media().segments = [];
-        this.player.tech_.hls.bandwidth = Number.MAX_VALUE; // Maintain playback state
-
-        this.player.currentTime(currentTime);
-
-        if (isPlaying) {
-          this.player.play();
-        }
+      if (this.config.displayCurrentQuality) {
+        this.setButtonInnerText(quality === "auto" ? this.player.localize("Auto") : `${quality}p`);
       }
 
-      this._qualityButton.unpressButton();
+      let qualitySet = false; // Enable only the level that matches the chosen quality (or all if set to auto)
+
+      levels.forEach(level => {
+        const levelPixels = Math.min(level.width, level.height);
+
+        if (quality === "auto" || levelPixels === quality) {
+          level.enabled = true;
+          qualitySet = true;
+        } else {
+          level.enabled = false;
+        }
+      });
+
+      this._qualityButton.unpressButton(); // If a valid quality level was set, flush the current buffer to enforce the change.
+
+
+      if (qualitySet) {
+        const currentTime = this.player.currentTime();
+        const volume = this.player.volume();
+        const wasPlaying = !this.player.paused(); // Pause playback before flushing the buffer.
+
+        this.player.pause(); // Use the tech's clearBuffer method if available; otherwise, seek slightly backward.
+
+        const tech = this.player.tech();
+
+        if (tech && typeof tech.clearBuffer === "function") {
+          tech.clearBuffer();
+        } else {
+          const flushTime = currentTime > 0.1 ? currentTime - 0.1 : 0;
+          this.player.currentTime(flushTime);
+        } // Delay restoring playback to allow the quality change to take effect.
+
+
+        setTimeout(() => {
+          this.player.currentTime(currentTime);
+          this.player.volume(volume);
+
+          if (wasPlaying) {
+            this.player.play();
+          }
+        }, 50); // Adjust delay if necessary.
+      }
     }
     /**
-     * Return the current set quality or 'auto'
+     * Returns the current set quality or 'auto' if none has been set.
      *
-     * @return {string} the currently set quality
+     * @return {string|number} The currently set quality.
      */
 
 
     getCurrentQuality() {
-      return this._currentQuality || 'auto';
+      return this._currentQuality || "auto";
     }
 
   }
 
   const initPlugin = function (player, options) {
     const QualitySelectorHls = new QualitySelectorHlsClass(player, options);
-    player.QualitySelectorHlsVjs = true; // Define default values for the plugin's `state` object here.
-
-    QualitySelectorHls.defaultState = {}; // Include the version number.
-
+    player.QualitySelectorHlsVjs = true;
+    QualitySelectorHls.defaultState = {};
     QualitySelectorHls.VERSION = version;
     return QualitySelectorHls;
   };
 
   const QualitySelectorHls = function (options) {
     return initPlugin(this, videojs__default['default'].obj.merge({}, options));
-  }; // Register the plugin with video.js.
+  }; // Register the plugin with Video.js.
 
 
-  videojs__default['default'].registerPlugin('qualitySelectorHls', QualitySelectorHls);
+  videojs__default['default'].registerPlugin("qualitySelectorHls", QualitySelectorHls);
 
   return QualitySelectorHls;
 
